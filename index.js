@@ -36,6 +36,11 @@ app.get('/api/ebpurchase',(req,res) =>{
 
 
 });
+
+
+
+
+
 app.get('/api/party', (req, res) => {
   const result = [];
 
@@ -64,6 +69,10 @@ app.get('/api/party', (req, res) => {
       res.status(500).json({ error: 'Internal server error' });
     });
 });
+
+
+
+
 app.get('/api/donar', (req, res) => {
   const result = [];
 
@@ -106,6 +115,36 @@ app.get('/api/companyFunding', (req, res) => {
       }
 
       result[companyName] += funding;
+    })
+    .on('end', () => {
+      res.json(result);
+    })
+    .on('error', (err) => {
+      console.error('Error reading CSV:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    });
+});
+//Changed output format
+app.get('/api/companyAmount', (req, res) => {
+  const result = [];
+
+  fs.createReadStream('ebpurchase.csv')
+    .pipe(csvParser())
+    .on('data', (row) => {
+      const companyName = row['Name of the Purchaser'];
+      const funding = parseFloat(row['Denominations']);
+
+      // Find the company in the result array
+      let company = result.find((c) => c.Company === companyName);
+
+      // If the company doesn't exist in the result array, create a new entry
+      if (!company) {
+        company = { Company: companyName, Amount: 0 };
+        result.push(company);
+      }
+
+      // Add the funding to the company's total
+      company.Amount += funding;
     })
     .on('end', () => {
       res.json(result);
