@@ -92,6 +92,30 @@ app.get('/api/donar', (req, res) => {
       res.status(500).json({ error: 'Internal server error' });
     });
 });
+app.get('/api/companyFunding', (req, res) => {
+  const result = {};
+
+  fs.createReadStream('ebpurchase.csv')
+    .pipe(csvParser())
+    .on('data', (row) => {
+      const companyName = row['Name of the Purchaser'];
+      const funding = parseFloat(row['Denominations']);
+
+      if (!result[companyName]) {
+        result[companyName] = 0;
+      }
+
+      result[companyName] += funding;
+    })
+    .on('end', () => {
+      res.json(result);
+    })
+    .on('error', (err) => {
+      console.error('Error reading CSV:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    });
+});
+
 app.listen(port, () => {
   console.log(`Server chalu aahe ${port}`);
 });
