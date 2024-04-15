@@ -1,9 +1,11 @@
 const express  = require('express');
 const app = express();
 const fs = require("fs");
+const cors = require('cors');
 const csvParser = require('csv-parser');
 const { on } = require('events');
 app.use(express.json());
+app.use(cors());
 const port = process.env.PORT || 9898;
 
 
@@ -216,6 +218,41 @@ app.get('/api/partyFunding', (req, res) => {
     });
 });
 
+
+
+//partywise donation from company
+
+app.get('/api/partywiseDonation', (req, res) => {
+  const partyName = req.query.partyName;
+    const bonds = {};
+    const purchasers = {};
+
+    // Read the ecibond.csv file
+    fs.createReadStream('ecibond.csv')
+        .pipe(csvParser())
+        .on('data', (row) => {
+            if (row['Name of the Political Party'] === partyName) {
+                bonds[row['Bond Number']] = row;
+            }
+        })
+        .on('end', () => {
+            // Read the ebpurchase.csv file
+            fs.createReadStream('ebpurchase.csv')
+                .pipe(csvParser())
+                .on('data', (row) => {
+                    if (bonds[row['Bond Number']]) {
+                        if (!purchasers[row['Name of the Purchaser']]) {
+                            purchasers[row['Name of the Purchaser']] = 0;
+                        }
+                        purchasers[row['Name of the Purchaser']] += parseInt(row['Denominations']);
+                    }
+                })
+                .on('end', () => {
+                    res.json(purchasers);
+                });
+        });
+  
+});
 
 app.listen(port, () => {
   console.log(`Server chalu aahe ${port}`);
