@@ -256,7 +256,7 @@ app.get('/api/partyTotalFunding', (req, res) => {
 
 
 //sorted
-app.get('/api/partyFunding', (req, res) => {
+app.get('/api/partyList', (req, res) => {
   const result = {};
 
   fs.createReadStream('ecibond.csv')
@@ -336,44 +336,77 @@ app.get('/api/partywiseDonation', (req, res) => {
   const partyName = req.query.partyName;
   const bonds = {};
   const purchasers = {};
-
+  const result = [];
+  console.log(partyName);
   // Read the ecibond.csv file
-  fs.createReadStream('ecibond.csv')
+  if (partyName && partyName !== undefined && partyName!== 'undefined') {
+    console.log('in full');
+    fs.createReadStream('ecibond.csv')
+      .pipe(csvParser())
+      .on('data', (row) => {
+        if (row['Name of the Political Party'] === partyName) {
+          bonds[row['Bond Number']] = row;
+        }
+      })
+      .on('end', () => {
+        // Read the ebpurchase.csv file
+        fs.createReadStream('ebpurchase.csv')
+          .pipe(csvParser())
+          .on('data', (row) => {
+            if (bonds[row['Bond Number']]) {
+              if (!purchasers[row['Name of the Purchaser']]) {
+                purchasers[row['Name of the Purchaser']] = 0;
+              }
+              purchasers[row['Name of the Purchaser']] += parseInt(row['Denominations']);
+            }
+          })
+          .on('end', () => {
+            // Convert the purchasers object to an array of entries
+            const sortedEntries = Object.entries(purchasers).sort((a, b) => b[1] - a[1]);
+  
+            // Convert the sorted array back into an object
+            const sortedPurchasers = Object.fromEntries(sortedEntries);
+  
+            // Send the sorted result as a JSON response
+            res.json(sortedPurchasers);
+          });
+      })
+      .on('error', (err) => {
+        // Handle any errors during file reading or parsing
+        console.error('Error reading CSV:', err);
+        res.status(500).json({ error: 'Internal server error' });
+      });
+  }
+  else{
+    console.log('in half');
+    fs.createReadStream('ebpurchase.csv')
     .pipe(csvParser())
     .on('data', (row) => {
-      if (row['Name of the Political Party'] === partyName) {
-        bonds[row['Bond Number']] = row;
+      const companyName = row['Name of the Purchaser'];
+      const funding = parseFloat(row['Denominations']);
+
+      if (!result[companyName]) {
+        result[companyName] = 0;
       }
+
+      result[companyName] += funding;
     })
     .on('end', () => {
-      // Read the ebpurchase.csv file
-      fs.createReadStream('ebpurchase.csv')
-        .pipe(csvParser())
-        .on('data', (row) => {
-          if (bonds[row['Bond Number']]) {
-            if (!purchasers[row['Name of the Purchaser']]) {
-              purchasers[row['Name of the Purchaser']] = 0;
-            }
-            purchasers[row['Name of the Purchaser']] += parseInt(row['Denominations']);
-          }
-        })
-        .on('end', () => {
-          // Convert the purchasers object to an array of entries
-          const sortedEntries = Object.entries(purchasers).sort((a, b) => b[1] - a[1]);
+      // Convert the result object to an array of entries
+      const sortedEntries = Object.entries(result).sort((a, b) => b[1] - a[1]);
 
-          // Convert the sorted array back into an object
-          const sortedPurchasers = Object.fromEntries(sortedEntries);
+      // Convert the sorted array back into an object
+      const sortedResult = Object.fromEntries(sortedEntries);
 
-          // Send the sorted result as a JSON response
-          res.json(sortedPurchasers);
-        });
+      res.json(sortedResult);
     })
     .on('error', (err) => {
-      // Handle any errors during file reading or parsing
       console.error('Error reading CSV:', err);
       res.status(500).json({ error: 'Internal server error' });
     });
+  }
 });
+
 
 app.listen(port, () => {
   console.log(`Server chalu aahe ${port}`);
